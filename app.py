@@ -3,32 +3,50 @@ import pickle
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+import nltk
 
-# -----------------------------
-# Page config
-# -----------------------------
-st.set_page_config(page_title="Support Ticket Classifier", layout="wide")
+# Download NLTK data (safe for deployment)
+nltk.download('stopwords')
+nltk.download('wordnet')
 
-# -----------------------------
-# Load model
-# -----------------------------
+# -------------------------------
+# PAGE CONFIG
+# -------------------------------
+st.set_page_config(
+    page_title="Support Ticket Classifier",
+    layout="wide"
+)
+
+# Reduce extra spacing (clean UI)
+st.markdown("""
+<style>
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 1rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# -------------------------------
+# LOAD MODEL
+# -------------------------------
 model_path = "backend/app/model/model.pkl"
 
 if not os.path.exists(model_path):
-    st.error("Model file not found. Train and save your model first.")
+    st.error("❌ Model file not found. Train and save your model first.")
     st.stop()
 
 model = pickle.load(open(model_path, "rb"))
 
-# -----------------------------
-# Session state (history)
-# -----------------------------
+# -------------------------------
+# SESSION STATE (for charts)
+# -------------------------------
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# -----------------------------
-# Priority logic
-# -----------------------------
+# -------------------------------
+# PRIORITY LOGIC
+# -------------------------------
 def get_priority(text):
     text = text.lower()
     if any(word in text for word in ["failed", "error", "crash", "urgent"]):
@@ -38,139 +56,124 @@ def get_priority(text):
     else:
         return "🟢 Low"
 
-# -----------------------------
-# Title
-# -----------------------------
-st.markdown("## 🚀 Support Ticket Classifier")
+# -------------------------------
+# TITLE & DESCRIPTION
+# -------------------------------
+st.title("🚀 Support Ticket Classifier")
 
-# -----------------------------
-# Layout
-# -----------------------------
+st.markdown("""
+### 🤖 AI-powered system to classify customer issues  
+Predicts category + assigns priority using Machine Learning
+""")
+
+st.markdown("**Try examples:**")
+st.code("""
+Payment failed again
+App keeps crashing
+Forgot my password
+Order not delivered
+""")
+
+# -------------------------------
+# LAYOUT
+# -------------------------------
 col1, col2 = st.columns([2, 1])
 
-# =============================
-# LEFT SIDE (INPUT + RESULT)
-# =============================
+# ===============================
+# LEFT SIDE (INPUT + RESULTS)
+# ===============================
 with col1:
+    user_input = st.text_area("Enter customer issue:", height=150)
 
-    # Sample buttons
-    colA, colB = st.columns(2)
+    col_btn1, col_btn2 = st.columns(2)
 
-    with colA:
-        if st.button("Sample: Payment Issue"):
-            st.session_state.sample_text = "My payment failed and I need help"
+    with col_btn1:
+        predict_clicked = st.button("Predict")
 
-    with colB:
-        if st.button("Sample: Account Issue"):
-            st.session_state.sample_text = "I forgot my password"
+    with col_btn2:
+        if st.button("Clear"):
+            st.session_state.history = []
 
-    # Text input
-    user_input = st.text_area(
-        "Enter customer issue:",
-        value=st.session_state.get("sample_text", ""),
-        height=150
-    )
-
-    # Predict button
-    if st.button("Predict"):
-
+    if predict_clicked:
         if user_input.strip() == "":
-            st.warning("Please enter some text")
-
+            st.warning("⚠️ Please enter some text")
         else:
             prediction = model.predict([user_input])[0]
 
             try:
-                probs = model.predict_proba([user_input])[0]
-                confidence = float(max(probs))
+                confidence = model.predict_proba([user_input]).max()
             except:
-                probs = None
                 confidence = None
 
             priority = get_priority(user_input)
 
-            # Save history
+            # Store history
             st.session_state.history.append(prediction)
 
-            # Results
+            # -------------------
+            # RESULTS
+            # -------------------
             st.subheader("📊 Results")
+
             st.success(f"Category: {prediction}")
 
-            if confidence is not None:
+            if confidence:
                 st.info(f"Confidence: {confidence:.2f}")
 
             st.warning(f"Priority: {priority}")
 
-            # -----------------------------
-            # Probability Chart
-            # -----------------------------
-            if probs is not None:
+            # -------------------
+            # PROBABILITY BARS
+            # -------------------
+            try:
+                probs = model.predict_proba([user_input])[0]
                 labels = model.classes_
 
-                prob_df = pd.DataFrame({
-                    "Category": labels,
-                    "Probability": probs
-                })
+                st.subheader("📊 Category Probabilities")
 
-                st.subheader("📊 Prediction Confidence")
-                st.bar_chart(prob_df.set_index("Category"))
-            else:
+                for label, prob in zip(labels, probs):
+                    st.write(f"{label}: {prob:.2f}")
+                    st.progress(float(prob))
+            except:
                 st.info("Probability not available")
 
-# =============================
-# RIGHT SIDE (DASHBOARD)
-# =============================
+# ===============================
+# RIGHT SIDE (CHARTS)
+# ===============================
 with col2:
-
-    st.subheader("📈 Analytics Dashboard")
+    st.subheader("📊 Analytics")
 
     history = st.session_state.history
 
     if len(history) > 0:
         df_hist = pd.DataFrame(history, columns=["category"])
 
-        # Pie Chart
-        st.subheader("📊 Category Distribution")
-        fig1, ax1 = plt.subplots()
-        df_hist["category"].value_counts().plot.pie(
-            autopct="%1.1f%%",
-            startangle=90,
-            ax=ax1
-        )
-        ax1.set_ylabel("")
-        ax1.set_title("Distribution")
-        st.pyplot(fig1)
+        c1, c2 = st.columns(2)
 
-        # Bar Chart
-        st.subheader("📊 Category Count")
-        fig2, ax2 = plt.subplots()
-        df_hist["category"].value_counts().plot.bar(ax=ax2)
-        st.pyplot(fig2)
+        # PIE CHART (SMALL)
+        with c1:
+            st.markdown("**Distribution**")
+            fig1, ax1 = plt.subplots(figsize=(3, 3))
+            df_hist["category"].value_counts().plot.pie(
+                autopct="%1.0f%%", ax=ax1
+            )
+            ax1.set_ylabel("")
+            st.pyplot(fig1)
 
-        # Metrics
+        # BAR CHART (SMALL)
+        with c2:
+            st.markdown("**Count**")
+            fig2, ax2 = plt.subplots(figsize=(4, 3))
+            df_hist["category"].value_counts().plot.bar(ax=ax2)
+            st.pyplot(fig2)
+
         st.metric("Total Predictions", len(history))
 
-        # Reset button
-        if st.button("Reset Analytics"):
-            st.session_state.history = []
-            st.success("Analytics reset")
-
     else:
-        st.info("No predictions yet. Try entering some text!")
+        st.info("No predictions yet")
 
-# =============================
-# BATCH PROCESSING
-# =============================
+# -------------------------------
+# FOOTER
+# -------------------------------
 st.markdown("---")
-st.subheader("📂 Batch Processing")
-
-uploaded_file = st.file_uploader("Upload CSV file with 'text' column")
-
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-
-    if "text" not in df.columns:
-        st.error("CSV must contain a 'text' column")
-    else:
-        df["prediction"] = model.predict(df["text"])
-        st.dataframe(df)
+st.markdown("Built by Ansel Monteiro | MSc Big Data Analytics 🚀")
