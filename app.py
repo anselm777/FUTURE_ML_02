@@ -45,7 +45,6 @@ def get_priority(text):
 # HEADER
 # -------------------------------
 st.title("🚀 Support Ticket Classifier")
-
 st.markdown("### 🤖 Classify customer issues and assign priority using Machine Learning")
 
 # -------------------------------
@@ -73,29 +72,30 @@ with col1:
         if user_input.strip() == "":
             st.warning("⚠️ Please enter some text")
         else:
-            prediction = model.predict([user_input])[0]
-
+            # SINGLE CALL (optimized)
+            probs = None
             try:
-                confidence = model.predict_proba([user_input]).max()
+                probs = model.predict_proba([user_input])[0]
+                confidence = max(probs)
             except:
                 confidence = None
 
+            prediction = model.predict([user_input])[0]
             priority = get_priority(user_input)
 
             st.session_state.history.append(prediction)
 
+            # RESULTS
             st.subheader("📊 Results")
-
             st.success(f"Category: {prediction}")
 
-            if confidence:
+            if confidence is not None:
                 st.info(f"Confidence: {confidence:.2f}")
 
             st.warning(f"Priority: {priority}")
 
-            # Plotly probability chart
-            try:
-                probs = model.predict_proba([user_input])[0]
+            # PROBABILITY CHART
+            if probs is not None:
                 labels = model.classes_
 
                 df_prob = pd.DataFrame({
@@ -108,12 +108,14 @@ with col1:
                     x="Category",
                     y="Probability",
                     color="Probability",
-                    title="Prediction Confidence"
+                    title="Prediction Confidence",
+                    text="Probability"
                 )
 
-                st.plotly_chart(fig, use_container_width=True)
+                fig.update_traces(texttemplate='%{text:.2f}', textposition='outside')
 
-            except:
+                st.plotly_chart(fig, use_container_width=True)
+            else:
                 st.info("Probability not available")
 
 # ===============================
@@ -128,7 +130,7 @@ with col2:
     if len(history) > 0:
         df_hist = pd.DataFrame(history, columns=["category"])
 
-        # Pie chart
+        # PIE CHART
         fig1 = px.pie(
             df_hist,
             names="category",
@@ -136,19 +138,21 @@ with col2:
         )
         st.plotly_chart(fig1, use_container_width=True)
 
-        # Bar chart
+        # BAR CHART (FIXED VERSION)
         df_count = df_hist["category"].value_counts().reset_index()
-        df_count.columns = ["category", "count"]   # ✅ FIX column names
+        df_count.columns = ["category", "count"]
+        df_count = df_count.sort_values(by="count", ascending=False)
 
         fig2 = px.bar(
-        df_count,
-        x="category",
-        y="count",
-        title="Category Count"
+            df_count,
+            x="category",
+            y="count",
+            title="Category Count",
+            text="count"
         )
 
         st.plotly_chart(fig2, use_container_width=True)
-        
+
         st.metric("Total Predictions", len(history))
 
     else:
