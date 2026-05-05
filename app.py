@@ -2,10 +2,12 @@ import streamlit as st
 import pickle
 import os
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.express as px
 import nltk
 
-# Download NLTK data (safe for deployment)
+# -------------------------------
+# NLTK (safe for deployment)
+# -------------------------------
 nltk.download('stopwords')
 nltk.download('wordnet')
 
@@ -17,12 +19,26 @@ st.set_page_config(
     layout="wide"
 )
 
-# Reduce extra spacing (clean UI)
+# -------------------------------
+# DARK + CARD STYLE
+# -------------------------------
 st.markdown("""
 <style>
+body {
+    background-color: #0E1117;
+    color: white;
+}
+
 .block-container {
     padding-top: 2rem;
-    padding-bottom: 1rem;
+}
+
+.card {
+    background-color: #1c1f26;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0px 4px 12px rgba(0,0,0,0.4);
+    margin-bottom: 20px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -33,13 +49,13 @@ st.markdown("""
 model_path = "backend/app/model/model.pkl"
 
 if not os.path.exists(model_path):
-    st.error("❌ Model file not found. Train and save your model first.")
+    st.error("Model not found")
     st.stop()
 
 model = pickle.load(open(model_path, "rb"))
 
 # -------------------------------
-# SESSION STATE (for charts)
+# SESSION STATE
 # -------------------------------
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -57,22 +73,15 @@ def get_priority(text):
         return "🟢 Low"
 
 # -------------------------------
-# TITLE & DESCRIPTION
+# HEADER
 # -------------------------------
-st.title("🚀 Support Ticket Classifier")
+st.markdown("<h1 style='text-align:center;'>🚀 Support Ticket Classifier</h1>", unsafe_allow_html=True)
 
 st.markdown("""
-### 🤖 AI-powered system to classify customer issues  
-Predicts category + assigns priority using Machine Learning
-""")
-
-st.markdown("**Try examples:**")
-st.code("""
-Payment failed again
-App keeps crashing
-Forgot my password
-Order not delivered
-""")
+<div class="card">
+🤖 Classify customer issues and assign priority using Machine Learning
+</div>
+""", unsafe_allow_html=True)
 
 # -------------------------------
 # LAYOUT
@@ -80,23 +89,26 @@ Order not delivered
 col1, col2 = st.columns([2, 1])
 
 # ===============================
-# LEFT SIDE (INPUT + RESULTS)
+# INPUT + RESULTS
 # ===============================
 with col1:
+
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+
     user_input = st.text_area("Enter customer issue:", height=150)
 
     col_btn1, col_btn2 = st.columns(2)
 
     with col_btn1:
-        predict_clicked = st.button("Predict")
+        predict = st.button("Predict")
 
     with col_btn2:
         if st.button("Clear"):
             st.session_state.history = []
 
-    if predict_clicked:
+    if predict:
         if user_input.strip() == "":
-            st.warning("⚠️ Please enter some text")
+            st.warning("Please enter text")
         else:
             prediction = model.predict([user_input])[0]
 
@@ -107,14 +119,9 @@ with col1:
 
             priority = get_priority(user_input)
 
-            # Store history
             st.session_state.history.append(prediction)
 
-            # -------------------
-            # RESULTS
-            # -------------------
-            st.subheader("📊 Results")
-
+            st.markdown("### 📊 Results")
             st.success(f"Category: {prediction}")
 
             if confidence:
@@ -122,58 +129,79 @@ with col1:
 
             st.warning(f"Priority: {priority}")
 
-            # -------------------
-            # PROBABILITY BARS
-            # -------------------
+            # Plotly probability chart
             try:
                 probs = model.predict_proba([user_input])[0]
                 labels = model.classes_
 
-                st.subheader("📊 Category Probabilities")
+                df_prob = pd.DataFrame({
+                    "Category": labels,
+                    "Probability": probs
+                })
 
-                for label, prob in zip(labels, probs):
-                    st.write(f"{label}: {prob:.2f}")
-                    st.progress(float(prob))
+                fig = px.bar(
+                    df_prob,
+                    x="Category",
+                    y="Probability",
+                    title="Prediction Confidence",
+                    color="Probability"
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+
             except:
-                st.info("Probability not available")
+                st.info("No probability available")
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ===============================
-# RIGHT SIDE (CHARTS)
+# ANALYTICS DASHBOARD
 # ===============================
 with col2:
+
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+
     st.subheader("📊 Analytics")
 
     history = st.session_state.history
 
     if len(history) > 0:
+
         df_hist = pd.DataFrame(history, columns=["category"])
 
-        c1, c2 = st.columns(2)
+        # Pie chart
+        pie_fig = px.pie(
+            df_hist,
+            names="category",
+            title="Category Distribution"
+        )
 
-        # PIE CHART (SMALL)
-        with c1:
-            st.markdown("**Distribution**")
-            fig1, ax1 = plt.subplots(figsize=(3, 3))
-            df_hist["category"].value_counts().plot.pie(
-                autopct="%1.0f%%", ax=ax1
-            )
-            ax1.set_ylabel("")
-            st.pyplot(fig1)
+        st.plotly_chart(pie_fig, use_container_width=True)
 
-        # BAR CHART (SMALL)
-        with c2:
-            st.markdown("**Count**")
-            fig2, ax2 = plt.subplots(figsize=(4, 3))
-            df_hist["category"].value_counts().plot.bar(ax=ax2)
-            st.pyplot(fig2)
+        # Bar chart
+        bar_fig = px.bar(
+            df_hist["category"].value_counts().reset_index(),
+            x="index",
+            y="category",
+            labels={"index": "Category", "category": "Count"},
+            title="Category Count"
+        )
+
+        st.plotly_chart(bar_fig, use_container_width=True)
 
         st.metric("Total Predictions", len(history))
 
     else:
         st.info("No predictions yet")
 
+    st.markdown('</div>', unsafe_allow_html=True)
+
 # -------------------------------
 # FOOTER
 # -------------------------------
-st.markdown("---")
-st.markdown("Built by Ansel Monteiro | MSc Big Data Analytics 🚀")
+st.markdown("""
+---
+<div style='text-align:center; color:gray;'>
+Built by Ansel Monteiro 🚀 | MSc Big Data Analytics
+</div>
+""", unsafe_allow_html=True)
