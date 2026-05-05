@@ -137,15 +137,18 @@ with col2:
         st.plotly_chart(fig1, use_container_width=True)
 
         # Bar chart
-        fig2 = px.bar(
-            df_hist["category"].value_counts().reset_index(),
-            x="index",
-            y="category",
-            labels={"index": "Category", "category": "Count"},
-            title="Category Count"
-        )
-        st.plotly_chart(fig2, use_container_width=True)
+        df_count = df_hist["category"].value_counts().reset_index()
+        df_count.columns = ["category", "count"]   # ✅ FIX column names
 
+        fig2 = px.bar(
+        df_count,
+        x="category",
+        y="count",
+        title="Category Count"
+        )
+
+        st.plotly_chart(fig2, use_container_width=True)
+        
         st.metric("Total Predictions", len(history))
 
     else:
