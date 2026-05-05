@@ -3,13 +3,6 @@ import pickle
 import os
 import pandas as pd
 import plotly.express as px
-import nltk
-
-# -------------------------------
-# NLTK (safe for deployment)
-# -------------------------------
-nltk.download('stopwords')
-nltk.download('wordnet')
 
 # -------------------------------
 # PAGE CONFIG
@@ -20,36 +13,12 @@ st.set_page_config(
 )
 
 # -------------------------------
-# DARK + CARD STYLE
-# -------------------------------
-st.markdown("""
-<style>
-body {
-    background-color: #0E1117;
-    color: white;
-}
-
-.block-container {
-    padding-top: 2rem;
-}
-
-.card {
-    background-color: #1c1f26;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0px 4px 12px rgba(0,0,0,0.4);
-    margin-bottom: 20px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# -------------------------------
 # LOAD MODEL
 # -------------------------------
 model_path = "backend/app/model/model.pkl"
 
 if not os.path.exists(model_path):
-    st.error("Model not found")
+    st.error("❌ Model file not found")
     st.stop()
 
 model = pickle.load(open(model_path, "rb"))
@@ -75,13 +44,9 @@ def get_priority(text):
 # -------------------------------
 # HEADER
 # -------------------------------
-st.markdown("<h1 style='text-align:center;'>🚀 Support Ticket Classifier</h1>", unsafe_allow_html=True)
+st.title("🚀 Support Ticket Classifier")
 
-st.markdown("""
-<div class="card">
-🤖 Classify customer issues and assign priority using Machine Learning
-</div>
-""", unsafe_allow_html=True)
+st.markdown("### 🤖 Classify customer issues and assign priority using Machine Learning")
 
 # -------------------------------
 # LAYOUT
@@ -89,11 +54,9 @@ st.markdown("""
 col1, col2 = st.columns([2, 1])
 
 # ===============================
-# INPUT + RESULTS
+# LEFT SIDE (INPUT + RESULTS)
 # ===============================
 with col1:
-
-    st.markdown('<div class="card">', unsafe_allow_html=True)
 
     user_input = st.text_area("Enter customer issue:", height=150)
 
@@ -108,7 +71,7 @@ with col1:
 
     if predict:
         if user_input.strip() == "":
-            st.warning("Please enter text")
+            st.warning("⚠️ Please enter some text")
         else:
             prediction = model.predict([user_input])[0]
 
@@ -121,7 +84,8 @@ with col1:
 
             st.session_state.history.append(prediction)
 
-            st.markdown("### 📊 Results")
+            st.subheader("📊 Results")
+
             st.success(f"Category: {prediction}")
 
             if confidence:
@@ -143,65 +107,52 @@ with col1:
                     df_prob,
                     x="Category",
                     y="Probability",
-                    title="Prediction Confidence",
-                    color="Probability"
+                    color="Probability",
+                    title="Prediction Confidence"
                 )
 
                 st.plotly_chart(fig, use_container_width=True)
 
             except:
-                st.info("No probability available")
-
-    st.markdown('</div>', unsafe_allow_html=True)
+                st.info("Probability not available")
 
 # ===============================
-# ANALYTICS DASHBOARD
+# RIGHT SIDE (ANALYTICS)
 # ===============================
 with col2:
-
-    st.markdown('<div class="card">', unsafe_allow_html=True)
 
     st.subheader("📊 Analytics")
 
     history = st.session_state.history
 
     if len(history) > 0:
-
         df_hist = pd.DataFrame(history, columns=["category"])
 
         # Pie chart
-        pie_fig = px.pie(
+        fig1 = px.pie(
             df_hist,
             names="category",
             title="Category Distribution"
         )
-
-        st.plotly_chart(pie_fig, use_container_width=True)
+        st.plotly_chart(fig1, use_container_width=True)
 
         # Bar chart
-        bar_fig = px.bar(
+        fig2 = px.bar(
             df_hist["category"].value_counts().reset_index(),
             x="index",
             y="category",
             labels={"index": "Category", "category": "Count"},
             title="Category Count"
         )
-
-        st.plotly_chart(bar_fig, use_container_width=True)
+        st.plotly_chart(fig2, use_container_width=True)
 
         st.metric("Total Predictions", len(history))
 
     else:
         st.info("No predictions yet")
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
 # -------------------------------
 # FOOTER
 # -------------------------------
-st.markdown("""
----
-<div style='text-align:center; color:gray;'>
-Built by Ansel Monteiro 🚀 | MSc Big Data Analytics
-</div>
-""", unsafe_allow_html=True)
+st.markdown("---")
+st.markdown("Built by Ansel Monteiro 🚀 | MSc Big Data Analytics")
